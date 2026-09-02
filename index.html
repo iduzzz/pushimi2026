@@ -132,11 +132,13 @@ body{font-family:'Frutiger','Nunito',-apple-system,sans-serif;background:#f5f5f7
 .add-plus{width:46px;height:46px;border-radius:10px;background:#ff9500;border:none;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .done-btn{width:100%;margin-top:14px;padding:14px;background:#f2f2f7;color:#1c1c1e;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer}
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
 <div class="hdr">
-  <span class="hdr-title">🏖️ Pushimi 2026</span>
+  <span class="hdr-title">🏖️ Pushimi 2026 <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:#c7c7cc;display:inline-block;margin-left:4px;vertical-align:middle"></span></span>
   <button class="icon-btn" onclick="openCats()">⚙️</button>
 </div>
 
@@ -230,6 +232,60 @@ body{font-family:'Frutiger','Nunito',-apple-system,sans-serif;background:#f5f5f7
 </div>
 
 <script>
+
+// ── FIREBASE ──
+const firebaseConfig = {
+  apiKey: "AIzaSyCKzbeu1sKCrqPepOOkanQStLi8Fg9tBcw",
+  authDomain: "finance-aa677.firebaseapp.com",
+  projectId: "finance-aa677",
+  storageBucket: "finance-aa677.firebasestorage.app",
+  messagingSenderId: "640398989615",
+  appId: "1:640398989615:web:9d4b1c3837374edfd2a9da"
+};
+firebase.initializeApp(firebaseConfig);
+const fdb = firebase.firestore();
+const cloudDoc = fdb.collection('pushimi2026').doc('data');
+try{ fdb.enablePersistence({synchronizeTabs:true}).catch(function(){}); }catch(e){}
+
+let syncTimer = null;
+
+function setSyncStatus(state){
+  const el = document.getElementById('syncDot');
+  if(!el) return;
+  if(state==='syncing') el.style.background='#facc15';
+  else if(state==='ok') el.style.background='#34c759';
+  else el.style.background='#ff3b30';
+}
+
+function pushToCloud(){
+  setSyncStatus('syncing');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(function(){
+    cloudDoc.set({
+      ex: DB.ex,
+      cats: DB.cats,
+      updatedAt: Date.now()
+    }).then(function(){
+      setSyncStatus('ok');
+    }).catch(function(err){
+      console.error('Sync error', err);
+      setSyncStatus('err');
+    });
+  }, 500);
+}
+
+function pullFromCloud(){
+  return cloudDoc.get().then(function(snap){
+    if(snap.exists){
+      const data = snap.data();
+      if(data.ex) localStorage.setItem('push26_ex', JSON.stringify(data.ex));
+      if(data.cats) localStorage.setItem('push26_cats', JSON.stringify(data.cats));
+      return true;
+    }
+    return false;
+  }).catch(function(){ setSyncStatus('err'); return false; });
+}
+
 const DB = {
   get ex(){return JSON.parse(localStorage.getItem('push26_ex')||'[]')},
   set ex(v){localStorage.setItem('push26_ex',JSON.stringify(v))},
@@ -260,7 +316,7 @@ function renderChips(){
   DB.cats.forEach(c=>{h+=`<button class="chip ${fCat===c.id?'on':''}" onclick="setF('${c.id}')">${c.e} ${c.n}</button>`;});
   document.getElementById('chipBar').innerHTML=h;
 }
-function setF(id){fCat=id;renderChips();render();}
+function setF(id){fCat=id;}
 
 function render(){
   const dF=document.getElementById('dFrom').value;
@@ -369,18 +425,18 @@ function saveForm(){
     ex.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2),a,d,cid:selCat,p:selPay,nt,ts:Date.now()});
   }
   DB.ex=ex;
-  closeM('formModal');renderChips();render();
+  closeM('formModal');
 }
 
 function delEx(id){
   if(!confirm('Fshi këtë shpenzim?')) return;
-  DB.ex=DB.ex.filter(e=>e.id!==id);render();
+  DB.ex=DB.ex.filter(e=>e.id!==id);render();pushToCloud();
 }
 
 function closeM(id){document.getElementById(id).classList.remove('on');}
 
 function openCats(){renderCM();document.getElementById('catModal').classList.add('on');}
-function closeCats(){closeM('catModal');renderChips();render();}
+function closeCats(){closeM('catModal');}
 
 function renderCM(){
   document.getElementById('cmList').innerHTML=DB.cats.map(c=>
@@ -413,12 +469,12 @@ function saveEditCat(id){
   const cats=DB.cats;
   const i=cats.findIndex(c=>c.id===id);
   if(i>-1){cats[i].e=em;cats[i].n=nm;}
-  DB.cats=cats;renderCM();
+  DB.cats=cats;renderCM();pushToCloud();
 }
 
 function delCat(id){
   if(DB.ex.some(e=>e.cid===id)&&!confirm('Ka shpenzime. Fshi gjithsesi?')) return;
-  DB.cats=DB.cats.filter(c=>c.id!==id);renderCM();
+  DB.cats=DB.cats.filter(c=>c.id!==id);renderCM();pushToCloud();
 }
 
 function addCat(){
@@ -433,7 +489,12 @@ function addCat(){
   renderCM();
 }
 
-renderChips();render();
+setSyncStatus('syncing');
+pullFromCloud().then(function(hadCloud){
+  renderChips(); render();
+  if(!hadCloud) pushToCloud();
+  else setSyncStatus('ok');
+}).catch(function(){ renderChips(); render(); setSyncStatus('err'); });
 </script>
 </body>
 </html>
