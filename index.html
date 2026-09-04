@@ -163,7 +163,7 @@ body{font-family:'Frutiger','Nunito',-apple-system,sans-serif;background:#0a0a0f
         <div class="ios-card">
           <div class="ios-r" id="amtRow">
             <span class="ios-rl">Shuma</span>
-            <input type="number" class="ios-fi big" id="fAmt" placeholder="" inputmode="decimal" min="0" onclick="this.select();event.stopPropagation()">
+            <input type="text" class="ios-fi big" id="fAmt" placeholder="0.00" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" autocomplete="off" onclick="this.select();event.stopPropagation()">
             <span class="ios-unit">€</span>
           </div>
           <div class="ios-r" id="dateRow">
@@ -402,7 +402,8 @@ function openEdit(id){
 }
 
 function saveForm(){
-  var a=parseFloat(document.getElementById('fAmt').value);
+  var rawAmt=document.getElementById('fAmt').value.trim().replace(',','.');
+  var a=parseFloat(rawAmt);
   var d=document.getElementById('fDate').value;
   var nt=document.getElementById('fNote').value.trim();
   if(!a||a<=0){
